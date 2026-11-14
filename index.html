@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#05080f">
+  <meta name="description" content="Neon Drift: Slipstream — a three.js bullet-hell shooter. Graze to charge, drift to cut through.">
+  <title>Neon Drift: Slipstream</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2305080f'/%3E%3Cpath fill='none' stroke='%237affea' stroke-width='2' stroke-linejoin='round' d='M16 4 27 27 16 22 5 27Z'/%3E%3Ccircle cx='16' cy='18' r='2' fill='%23fff'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+  <script type="importmap">
+    { "imports": { "three": "./node_modules/three/build/three.module.js", "three/addons/": "./node_modules/three/examples/jsm/" } }
+  </script>
+</head>
+<body class="mode-title">
+  <canvas id="stage" tabindex="0"></canvas>
+
+  <!-- In-flight interface. Blocks hang off the projected edges of the playfield. -->
+  <div id="hud" class="hud" hidden>
+    <div class="hud-block hud-tl">
+      <div class="stat"><span class="label" data-i18n="SCORE">SCORE</span><output id="score" class="num big">000000</output></div>
+      <div class="stat inline"><span class="label" data-i18n="BEST">BEST</span><output id="best" class="num">000000</output></div>
+      <div class="chain" id="chain">
+        <span class="label" data-i18n="CHAIN">CHAIN</span>
+        <output id="chain-value" class="num">×1.0</output>
+        <i class="meter"><b id="chain-meter"></b></i>
+      </div>
+    </div>
+    <div class="hud-block hud-bl">
+      <div class="flux" id="flux">
+        <div class="flux-head"><span class="label" data-i18n="FLUX">FLUX</span><span class="label" id="flux-state"></span></div>
+        <div class="flux-cells"><i><b></b></i><i><b></b></i><i><b></b></i></div>
+      </div>
+    </div>
+    <div class="hud-block hud-tr">
+      <div class="stat"><span class="label" data-i18n="LIVES">LIVES</span><span id="lives" class="pips lives"></span></div>
+      <div class="stat"><span class="label" data-i18n="NOVA">NOVA</span><span id="bombs" class="pips bombs"></span></div>
+      <div class="stat"><span class="label" data-i18n="POWER">POWER</span><span id="power" class="pips power"></span></div>
+      <div class="stat"><span class="label" data-i18n="SHIELD">SHIELD</span><span id="shield" class="tag"></span></div>
+    </div>
+    <div class="hud-block hud-br">
+      <div class="stat inline"><span class="label" data-i18n="GRAZE">GRAZE</span><output id="graze" class="num">0</output></div>
+      <span id="run-class" class="tag class-tag"></span>
+    </div>
+    <div class="hud-top">
+      <div class="progress" id="progress">
+        <span id="stage-label" class="label"></span>
+        <i class="meter"><b id="stage-meter"></b></i>
+        <span id="stage-clock" class="label num"></span>
+      </div>
+      <div class="bossbar" id="bossbar" hidden>
+        <div class="boss-head"><strong id="boss-name"></strong><span id="boss-phase" class="label"></span></div>
+        <div class="boss-cells"><i><b></b></i><i><b></b></i><i><b></b></i></div>
+      </div>
+    </div>
+    <div id="banner" class="banner" hidden><strong id="banner-title"></strong><span id="banner-sub"></span></div>
+    <div id="toast" class="toast" hidden></div>
+    <div id="floaters"></div>
+  </div>
+
+  <header class="topbar">
+    <button id="pause-button" class="ghost" hidden><span data-i18n="PAUSE">PAUSE</span><kbd data-key="pause"></kbd></button>
+    <button id="language-button" class="ghost" data-i18n-label="Switch language" aria-label="Switch language">中文</button>
+    <button id="mute-button" class="ghost" data-i18n-label="Mute or unmute" aria-label="Mute or unmute"></button>
+    <button id="settings-button" class="ghost" data-i18n="SETTINGS" data-i18n-label="Open settings" aria-label="Open settings">SETTINGS</button>
+    <button id="fullscreen-button" class="ghost" data-i18n="FULLSCREEN" data-i18n-label="Toggle fullscreen" aria-label="Toggle fullscreen">FULLSCREEN</button>
+  </header>
+
+  <section id="title-screen" class="screen title" aria-labelledby="wordmark">
+    <div class="title-main">
+      <p class="kicker" data-i18n="A THREE.JS REBUILD · V1.0">A THREE.JS REBUILD · V1.0</p>
+      <h1 class="wordmark" id="wordmark"><span class="wm-neon">NEON</span> <span class="wm-drift">DRIFT</span></h1>
+      <p class="subtitle" data-i18n="SLIPSTREAM">SLIPSTREAM</p>
+      <p class="tagline" data-i18n="Graze the light. Drift through it.">Graze the light. Drift through it.</p>
+      <p class="lede" data-i18n="Three sectors. Three bosses. Every bullet you brush charges the drive — spend it to cut straight through the storm.">Three sectors. Three bosses. Every bullet you brush charges the drive — spend it to cut straight through the storm.</p>
+
+      <div class="group">
+        <span class="label" id="class-label" data-i18n="FLIGHT CLASS">FLIGHT CLASS</span>
+        <div class="chips" id="difficulty" role="radiogroup" aria-labelledby="class-label"></div>
+        <p class="note" id="difficulty-note"></p>
+      </div>
+      <div class="group">
+        <span class="label" id="ship-label" data-i18n="AIRFRAME">AIRFRAME</span>
+        <div class="chips" id="ships" role="radiogroup" aria-labelledby="ship-label"></div>
+        <p class="note" id="ship-note"></p>
+      </div>
+      <div class="group inline">
+        <span class="label" id="steer-label" data-i18n="STEER WITH">STEER WITH</span>
+        <div class="chips small" role="radiogroup" aria-labelledby="steer-label">
+          <button type="button" role="radio" data-movement="keyboard" data-i18n="KEYBOARD">KEYBOARD</button>
+          <button type="button" role="radio" data-movement="mouse" data-i18n="MOUSE">MOUSE</button>
+        </div>
+      </div>
+      <button id="start-button" class="primary" type="button"><span data-i18n="INITIATE FLIGHT">INITIATE FLIGHT</span><kbd>ENTER</kbd></button>
+    </div>
+
+    <aside class="manual" aria-labelledby="manual-label">
+      <h2 class="label" id="manual-label" data-i18n="FLIGHT MANUAL">FLIGHT MANUAL</h2>
+      <dl>
+        <div><dt data-keys="move"></dt><dd><b data-i18n="MOVE">MOVE</b><span id="move-hint"></span></dd></div>
+        <div><dt data-keys="fire"></dt><dd><b data-i18n="FIRE">FIRE</b><span data-i18n="Hold to fire">Hold to fire</span></dd></div>
+        <div><dt data-keys="focus"></dt><dd><b data-i18n="FOCUS">FOCUS</b><span data-i18n="Slow down, tighten the guns, see the graze ring">Slow down, tighten the guns, see the graze ring</span></dd></div>
+        <div class="feature"><dt data-keys="drift"></dt><dd><b data-i18n="DRIFT">DRIFT</b><span data-i18n="Spend one FLUX: dash through bullets and turn them into homing shards">Spend one FLUX: dash through bullets and turn them into homing shards</span></dd></div>
+        <div><dt data-keys="bomb"></dt><dd><b data-i18n="NOVA">NOVA</b><span data-i18n="Clear the screen in an emergency">Clear the screen in an emergency</span></dd></div>
+      </dl>
+      <p class="tip" data-i18n="Only the bright core of your ship takes damage. Fly close — every graze charges FLUX.">Only the bright core of your ship takes damage. Fly close — every graze charges FLUX.</p>
+    </aside>
+  </section>
+
+  <section id="pause-screen" class="screen overlay" hidden aria-labelledby="pause-title">
+    <div class="card">
+      <h2 id="pause-title" data-i18n="PAUSED">PAUSED</h2>
+      <p id="pause-note" class="note"></p>
+      <div class="actions">
+        <button id="resume-button" class="primary" type="button"><span data-i18n="RESUME">RESUME</span><kbd data-key="pause"></kbd></button>
+        <button id="pause-restart-button" class="ghost" type="button" data-i18n="RESTART">RESTART</button>
+        <button id="pause-settings-button" class="ghost" type="button" data-i18n="SETTINGS">SETTINGS</button>
+        <button id="pause-quit-button" class="ghost" type="button" data-i18n="QUIT TO TITLE">QUIT TO TITLE</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="end-screen" class="screen overlay" hidden aria-labelledby="end-title">
+    <div class="card wide">
+      <p class="kicker" id="end-kicker"></p>
+      <h2 id="end-title"></h2>
+      <p id="end-note" class="note"></p>
+      <div class="result-score">
+        <span class="label" data-i18n="FINAL SCORE">FINAL SCORE</span>
+        <output id="final-score" class="num"></output>
+        <span id="record-label" class="tag"></span>
+        <span id="result-class" class="label"></span>
+      </div>
+      <dl class="results">
+        <div><dt data-i18n="HOSTILES DOWN">HOSTILES DOWN</dt><dd id="result-kills"></dd></div>
+        <div><dt data-i18n="GRAZES">GRAZES</dt><dd id="result-grazes"></dd></div>
+        <div><dt data-i18n="DRIFTS">DRIFTS</dt><dd id="result-drifts"></dd></div>
+        <div><dt data-i18n="BULLETS CONVERTED">BULLETS CONVERTED</dt><dd id="result-converted"></dd></div>
+        <div><dt data-i18n="BEST SLIPSTREAM">BEST SLIPSTREAM</dt><dd id="result-slipstream"></dd></div>
+        <div><dt data-i18n="MAX CHAIN">MAX CHAIN</dt><dd id="result-chain"></dd></div>
+        <div><dt data-i18n="SECTORS CLEAR">SECTORS CLEAR</dt><dd id="result-sectors"></dd></div>
+        <div><dt data-i18n="FLIGHT TIME">FLIGHT TIME</dt><dd id="result-time"></dd></div>
+      </dl>
+      <div class="actions row">
+        <button id="restart-button" class="primary" type="button"><span data-i18n="FLY AGAIN">FLY AGAIN</span><kbd>ENTER</kbd></button>
+        <button id="end-quit-button" class="ghost" type="button" data-i18n="TITLE">TITLE</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="settings" class="screen overlay sheet" hidden aria-labelledby="settings-title">
+    <div class="card wide">
+      <div class="sheet-head">
+        <h2 id="settings-title" data-i18n="SETTINGS">SETTINGS</h2>
+        <button id="settings-close" class="ghost" type="button" data-i18n="CLOSE">CLOSE</button>
+      </div>
+      <div class="sheet-body">
+        <div class="pane">
+          <h3 class="label" data-i18n="CONTROLS">CONTROLS</h3>
+          <div class="option">
+            <span data-i18n="STEER WITH">STEER WITH</span>
+            <div class="chips small" role="radiogroup">
+              <button type="button" role="radio" data-movement="keyboard" data-i18n="KEYBOARD">KEYBOARD</button>
+              <button type="button" role="radio" data-movement="mouse" data-i18n="MOUSE">MOUSE</button>
+            </div>
+          </div>
+          <div class="option">
+            <span data-i18n="AUTO-FIRE">AUTO-FIRE</span>
+            <button type="button" class="toggle" id="autofire-toggle" role="switch"></button>
+          </div>
+          <div class="bindings" id="bindings"></div>
+          <p class="note small" data-i18n="Click a slot, then press a key or mouse button. Backspace clears, Esc cancels.">Click a slot, then press a key or mouse button. Backspace clears, Esc cancels.</p>
+          <p class="note small" data-i18n="Gamepad: stick to fly · A fire · X drift · B nova · shoulders focus · Start pause">Gamepad: stick to fly · A fire · X drift · B nova · shoulders focus · Start pause</p>
+          <div class="option">
+            <span id="bindings-status" class="note small" role="status"></span>
+            <button type="button" class="ghost" id="bindings-reset" data-i18n="RESET CONTROLS">RESET CONTROLS</button>
+          </div>
+        </div>
+        <div class="pane">
+          <h3 class="label" data-i18n="DISPLAY">DISPLAY</h3>
+          <div class="option">
+            <span data-i18n="GRAPHICS">GRAPHICS</span>
+            <div class="chips small" role="radiogroup" data-setting="quality">
+              <button type="button" role="radio" data-value="high" data-i18n="HIGH">HIGH</button>
+              <button type="button" role="radio" data-value="medium" data-i18n="MEDIUM">MEDIUM</button>
+              <button type="button" role="radio" data-value="low" data-i18n="LOW">LOW</button>
+            </div>
+          </div>
+          <div class="option">
+            <span data-i18n="CAMERA">CAMERA</span>
+            <div class="chips small" role="radiogroup" data-setting="camera">
+              <button type="button" role="radio" data-value="dynamic" data-i18n="DYNAMIC">DYNAMIC</button>
+              <button type="button" role="radio" data-value="flat" data-i18n="FLAT">FLAT</button>
+            </div>
+          </div>
+          <p class="note small" data-i18n="Dynamic leans the camera behind the ship. Flat looks straight down, like the original.">Dynamic leans the camera behind the ship. Flat looks straight down, like the original.</p>
+          <label class="option"><span data-i18n="GLOW">GLOW</span><input type="range" id="glow-level" min="0" max="100" step="5"></label>
+          <label class="option"><span data-i18n="BRIGHTNESS">BRIGHTNESS</span><input type="range" id="brightness-level" min="0" max="100" step="5"></label>
+          <p class="note small" data-i18n="Glow is the halo around ships and bullets. Brightness is the whole picture.">Glow is the halo around ships and bullets. Brightness is the whole picture.</p>
+          <div class="option">
+            <span data-i18n="SCREEN SHAKE">SCREEN SHAKE</span>
+            <button type="button" class="toggle" id="shake-toggle" role="switch"></button>
+          </div>
+          <div class="option">
+            <span data-i18n="LANGUAGE">LANGUAGE</span>
+            <div class="chips small" role="radiogroup" data-setting="language">
+              <button type="button" role="radio" data-value="en">ENGLISH</button>
+              <button type="button" role="radio" data-value="zh">简体中文</button>
+            </div>
+          </div>
+          <h3 class="label" data-i18n="AUDIO">AUDIO</h3>
+          <label class="option"><span data-i18n="MUSIC">MUSIC</span><input type="range" id="music-volume" min="0" max="100" step="5"></label>
+          <label class="option"><span data-i18n="EFFECTS">EFFECTS</span><input type="range" id="sfx-volume" min="0" max="100" step="5"></label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div id="fatal" class="fatal" hidden></div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "name": "neon-drift-slipstream",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Neon Drift: Slipstream — a three.js bullet-hell shooter rebuilt from Neon Drift. 基于 Neon Drift 重制的 three.js 弹幕射击游戏。",
+  "scripts": {
+    "start": "node server.mjs",
+    "start:dist": "node server.mjs dist",
+    "test": "node --test tests/*.test.mjs",
+    "test:browser": "node tests/browser/smoke.mjs",
+    "build": "node scripts/build.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "three": "^0.187.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
